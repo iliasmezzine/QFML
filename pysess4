@@ -1,0 +1,40 @@
+import pandas as pd
+import pandas_datareader as pdr
+import fix_yahoo_finance as yf
+import numpy as np
+import matplotlib.pyplot as plt
+
+yf.pdr_override()
+stocks = ['^GSPC']
+
+t1='01-03-2000'
+t2='03-27-2019'
+
+df = pdr.get_data_yahoo(stocks,start=t1,end=t2)['Close'].pct_change()
+df['Rolling20D'] = df['^GSPC'].rolling(window=20).mean()
+df.dropna(inplace=True)
+
+df['ind1'] = np.where(df['^GSPC'] > df['Rolling20D'],df['^GSPC'].shift(-1),-df['^GSPC'].shift(-1))
+df['ind2'] = np.where(df['^GSPC'] > df['Rolling20D'],-df['^GSPC'].shift(-1),df['^GSPC'].shift(-1))
+keep = ['^GSPC','ind1','ind2']
+
+#Sharpe ratio assuming the daily rfr is 0
+
+stats = df[keep].agg({u:{'Mean':np.mean, 
+                         'Vol':np.std,
+                         'Annualized Vol' : lambda u : np.sqrt(252)*u.std(),
+                         'Kurtosis':lambda u : u.kurtosis(),
+                         'Skewness':lambda u : u.skew(),
+                         'Sharpe Ratio':lambda u: u.mean()/u.std()
+                        }for u in keep})
+
+df['ind1_cpd'] = (1+df['ind1']).cumprod()
+df['ind2_cpd'] = (1+df['ind2']).cumprod()
+df['spx_cpd'] = (1+df['^GSPC']).cumprod()
+
+plt.plot(df['ind1_cpd'],label='Strategy 1 Compound returns')
+plt.plot(df['ind2_cpd'],label='Strategy 2 Compound returns',dashes=[1,2])
+plt.plot(df['spx_cpd'],label='SPY Compound returns')
+
+plt.legend()
+plt.show()
