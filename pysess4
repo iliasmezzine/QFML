@@ -11,8 +11,7 @@ t1='01-03-2000'
 t2='03-27-2019'
 
 df = pdr.get_data_yahoo(stocks,start=t1,end=t2)['Close'].pct_change()
-df['Rolling20D'] = df['^GSPC'].rolling(window=20).mean()
-df.dropna(inplace=True)
+df['Rolling20D'] = df['^GSPC'].rolling(window=20).mean().dropna(inplace=True)
 
 df['ind1'] = np.where(df['^GSPC'] > df['Rolling20D'],df['^GSPC'].shift(-1),-df['^GSPC'].shift(-1))
 df['ind2'] = np.where(df['^GSPC'] > df['Rolling20D'],-df['^GSPC'].shift(-1),df['^GSPC'].shift(-1))
