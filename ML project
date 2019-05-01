@@ -1,0 +1,50 @@
+import os
+import pandas as pd
+import numpy as np
+
+os.chdir("C://Users//ilias//OneDrive//Bureau//ML")
+
+df = pd.read_excel("sxxp_returns.xlsx")
+df_comp = pd.read_excel("sxxp_comp_returns.xlsx")
+pca = PCA(n_components = 13)
+
+c_change = [np.sum((df_comp.iloc[i+1]-df_comp.iloc[i])**2) != 0 for i in range(len(df_comp) -1)]
+c_change.insert(0,0)
+
+df_comp['indic_change'] = np.cumsum(c_change) #indicator function for a composition change
+grp_comp = df_comp.groupby(df_comp['indic_change'],axis=0).groups #time dfs with stable composition
+time_index = [pd.to_datetime(grp_comp[i]) for i in range(len(grp_comp))] #list of time indices for each subset
+
+pca_ready_dfs = [] #list holind the dfs for rolling PCA
+
+for u in range(len(time_index)):
+    curr_df = df.loc[time_index[u]] #current dataframe
+    curr_comp = df_comp.loc[time_index[0]].iloc[0] #current index comp.
+    for name in curr_df.columns:
+        if curr_comp[name] == 0:
+            curr_df.drop(name, axis=1, inplace=True)
+            
+    pca_ready_dfs.append(curr_df) #array storing the ready-to-use PCA inputs (last if we have to transform them)
+
+
+all_inputs = [] #list holding the inputs
+
+
+for x in pca_ready_dfs: #run the PCA for each df, store all the components (in value)
+    pca.fit(x)
+    #here the .dot is used to retrieve the component in value (<returns_(t), pc_1>, ... <returns_(t), pc_max> )
+    curr_input = [[np.dot(x.iloc[i],pca.components_[j]) for i in range(len(x))] for j in range(len(pca.components_))]
+    all_inputs = all_inputs + [curr_input]
+    
+final_inputs = [] #awful list merging the inputs
+for j in range(13):
+    cp_0 = [] 
+    for i in range(len(all_inputs)):
+        cp_0 += all_inputs[i][j]
+    final_inputs +=[cp_0]
+
+#final result as xlsx
+
+final_inputs = pd.DataFrame(final_inputs).transpose()
+final_inputs.to_excel("test5.xlsx")
+    
