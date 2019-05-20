@@ -27,8 +27,7 @@ for u in range(len(time_index)):
     pca_ready_dfs.append(curr_df) #array storing the ready-to-use PCA inputs (last if we have to transform them)
 
 
-all_inputs = [] #list holding the inputs
-
+all_inputs = [] #PCA unconcatenated inputs
 
 for x in pca_ready_dfs: #run the PCA for each df, store all the components (in value)
     pca.fit(x)
@@ -36,14 +35,12 @@ for x in pca_ready_dfs: #run the PCA for each df, store all the components (in v
     curr_input = [[np.dot(x.iloc[i],pca.components_[j]) for i in range(len(x))] for j in range(len(pca.components_))]
     all_inputs = all_inputs + [curr_input]
     
-final_inputs = [] #awful list merging the inputs
+final_inputs = [] #PCA concatenated inputs
 for j in range(13):
     cp_0 = [] 
     for i in range(len(all_inputs)):
         cp_0 += all_inputs[i][j]
     final_inputs +=[cp_0]
-
-#final result as xlsx
 
 final_inputs = pd.DataFrame(final_inputs).transpose()
 final_inputs.to_excel("test5.xlsx")
