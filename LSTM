@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
-
 # In[1]:
-
-
-#Rolling PCA + all the preprocessing functions
+#Rolling PCA + All preprocessing functions.
 
 import os
 import pandas as pd
@@ -18,14 +15,16 @@ from tensorflow.keras.layers import LSTM
 import pywt as wt
 import matplotlib.pyplot as plt 
 
+os.chdir("C://Users//ilias//OneDrive//Bureau//ML")
+df = pd.read_excel("sxxp_returns.xlsx")
+idx = df.index
 
-def denoise_wt(data,c): #signal denoising with wavelet transform, sig = nb of sig deviation
+def denoise_wt(data,c): #Signal denoising with wavelet transform, c controls the denoising intensity.
     
-    (u, d) = wt.dwt(data, "haar") #first we apply discrete wavelet transform (using the Haar basis)
+    (u, d) = wt.dwt(data, "haar") 
     up_thresh = wt.threshold(u, np.std(u)/c, mode="soft")                
-    down_thresh = wt.threshold(d, np.std(d)/c, mode="soft")   #remove all the wavelets that have component deviating from more than 1 sigma
-    
-    return wt.idwt(up_thresh, down_thresh, "haar") #then apply inverse discrete wavelet transform on this result
+    down_thresh = wt.threshold(d, np.std(d)/c, mode="soft")   
+    return wt.idwt(up_thresh, down_thresh, "haar") 
 
 def series_to_supervised(data, n_in=1, n_out=1, dropnan=True): #convert pb to slp
     n_vars = 1 if type(data) is list else data.shape[1]
@@ -45,11 +44,6 @@ def series_to_supervised(data, n_in=1, n_out=1, dropnan=True): #convert pb to sl
     if dropnan:
         agg.dropna(inplace=True)
     return agg
-
-os.chdir("C://Users//ilias//OneDrive//Bureau//ML")
-df = pd.read_excel("sxxp_returns.xlsx")
-idx = df.index
-
 
 def compute_lstm_results(c):
     
@@ -75,12 +69,11 @@ def compute_lstm_results(c):
 
         pca_ready_dfs.append(curr_df) #array storing the ready-to-use PCA inputs (last if we have to transform them)
 
-
     all_inputs = [] #list holding the inputs
 
     for x in pca_ready_dfs: #run the PCA for each df, store all the components (in value)
         pca.fit(x)
-        #here the .dot is used to retrieve the component in value (<returns_(t), pc_1>, ... <returns_(t), pc_max> )
+        #Here the .dot is used to retrieve the component in value (<returns_(t), pc_1>, ... <returns_(t), pc_max> )
         curr_input = [[np.dot(x.iloc[i],pca.components_[j]) for i in range(len(x))] for j in range(len(pca.components_))]
         all_inputs = all_inputs + [curr_input]
 
@@ -91,33 +84,29 @@ def compute_lstm_results(c):
             cp_0 += all_inputs[i][j]
         final_inputs +=[cp_0]
 
-    #final result as xlsx
-
     final_inputs = pd.DataFrame(final_inputs).transpose()
     sxxp = pd.read_excel("sxxp_returns_solo.xlsx")
     final_inputs.set_index(sxxp.index,drop=True,inplace=True)
     final_inputs.rename(index=str, columns={i:"pc_{}".format(i) for i in range(13)},inplace=True)
-
-    #concatenate the sxxp and principal components df
-
     train_set = pd.concat([sxxp,final_inputs], axis=1, join='outer')
 
     #Preprocessing the data
     #Reframing the problem into a SLP.
     #Splitting the ds into test, train
     #Reshaping everything into LSTM dimension
-    #Rescale the data using MinMaxScaler
+    #Rescaling the data using MinMaxScaler
 
     values = train_set.values
     scaler = MinMaxScaler(feature_range=(0, 1))
     scaled = pd.DataFrame(scaler.fit_transform(values))
     reframed = series_to_supervised(scaled, 1, 1)
 
-    #Drop the unnecessary columns (the PCs[t])
+    #Dropping unnecessary PCs[t]
+    
     ldrop = [i for i in range(15,28)]
     reframed.drop(reframed.columns[ldrop], axis=1, inplace=True)
 
-    # Split the data into training and test sets. Taking 80% as training set and 20% as test set
+    # Splitting the dataset into training and test sets. As a rule of thumb, taking 80% as training set and 20% as test set.
 
     n_samples = int(len(reframed)*0.8) 
     values = reframed.values
@@ -127,7 +116,7 @@ def compute_lstm_results(c):
     train_X, train_y = train[:, :-1], train[:, -1]
     test_X, test_y = test[:, :-1], test[:, -1]
 
-    # Reshape everything into LSTM dimension
+    # Reshaping the dataset into LSTM-friendly dimension.
 
     train_X = train_X.reshape((train_X.shape[0], 1, train_X.shape[1]))
     test_X = test_X.reshape((test_X.shape[0], 1, test_X.shape[1]))
@@ -153,15 +142,15 @@ def compute_lstm_results(c):
     yhat = model.predict(test_X)
     #Reshape test set in initial shape
     test_X = test_X.reshape((test_X.shape[0], test_X.shape[2])) 
-    #Concatenate the prediction with the test X, rescale all back then keep only the first column
-
-    #Rescale the y_predicted
+    
+    #Concatenating the prediction with the test X, rescaling all back then keeping only the first column
+    #Rescaling the y_predicted
 
     inv_yhat = concatenate((yhat, test_X[:, 1:]), axis=1)
     inv_yhat = scaler.inverse_transform(inv_yhat)
     inv_yhat = inv_yhat[:,0]
 
-    #Rescale the y_actual
+    #Rescaling the y_actual.
     test_y = test_y.reshape((len(test_y), 1))
     inv_y = concatenate((test_y, test_X[:, 1:]), axis=1)
     inv_y = scaler.inverse_transform(inv_y)
